@@ -54,6 +54,11 @@ func (r *LinearRegressor) Fit(X [][]float64, y []float64) {
 		}
 		r.w = mat.NewDense(D, 1, weights)
 	}
+
+	rand.Shuffle(len(X), func(i, j int) {
+		X[i], X[j] = X[j], X[i]
+		y[i], y[j] = y[j], y[i]
+	})
 	var data []float64
 	for _, row := range X {
 		data = append(data, row...)
@@ -64,15 +69,20 @@ func (r *LinearRegressor) Fit(X [][]float64, y []float64) {
 	switch r.loss {
 	case MSE:
 		for i := 0; i < r.epochs; i++ {
-			var f, e, alphagrad = mat.NewDense(N, 1, nil), mat.NewDense(N, 1, nil), mat.NewDense(D, 1, nil)
-			f.Mul(Xm, r.w)
-			e.Sub(f, yc)
-			if r.verbose {
-				fmt.Println("epoch: ", i, " mean error: ", AvgAbsCol(e))
+			for b := 0; b+r.batchSize <= N; b += r.batchSize {
+				XBatch := Xm.Slice(b, b+r.batchSize, 0, D)
+				yBatch := yc.Slice(b, b+r.batchSize, 0, 1)
+				var f, e, alphagrad = mat.NewDense(r.batchSize, 1, nil), mat.NewDense(r.batchSize, 1, nil), mat.NewDense(D, 1, nil)
+				f.Mul(XBatch, r.w)
+				e.Sub(f, yBatch)
+				if r.verbose {
+					fmt.Println("epoch: ", i, " mean error: ", AvgAbsCol(e))
+				}
+				alphagrad.Mul(XBatch.T(), e)
+				alphagrad.Scale(2.*r.alpha/float64(r.batchSize), alphagrad)
+				r.w.Sub(r.w, alphagrad)
 			}
-			alphagrad.Mul(Xm.T(), e)
-			alphagrad.Scale(2.*r.alpha/float64(N), alphagrad)
-			r.w.Sub(r.w, alphagrad)
+
 		}
 	default:
 		log.Fatalf("not implemented: loss '%v' other than MSE", r.loss)
