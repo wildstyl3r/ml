@@ -19,16 +19,18 @@ const (
 type LinearRegressor struct {
 	w         *mat.Dense
 	alpha     float64
+	l2        float64
 	batchSize int
 	epochs    int
 	loss      Loss
 	verbose   bool
 }
 
-func NewLinearRegressor(alpha float64, batchSize, epochs int, loss Loss, verbose bool) LinearRegressor {
+func NewLinearRegressor(alpha, l2 float64, batchSize, epochs int, loss Loss, verbose bool) LinearRegressor {
 	return LinearRegressor{
 		nil,
 		alpha,
+		l2,
 		batchSize,
 		epochs,
 		loss,
@@ -76,7 +78,7 @@ func (r *LinearRegressor) Fit(X [][]float64, y []float64) {
 			for b := 0; b+r.batchSize <= N; b += r.batchSize {
 				XBatch := Xm.Slice(b, b+r.batchSize, 0, D)
 				yBatch := yc.Slice(b, b+r.batchSize, 0, 1)
-				var f, e, alphagrad = mat.NewDense(r.batchSize, 1, nil), mat.NewDense(r.batchSize, 1, nil), mat.NewDense(D, 1, nil)
+				var f, e = mat.NewDense(r.batchSize, 1, nil), mat.NewDense(r.batchSize, 1, nil)
 
 				f.Mul(XBatch, r.w)
 
@@ -85,7 +87,13 @@ func (r *LinearRegressor) Fit(X [][]float64, y []float64) {
 				if r.verbose {
 					fmt.Println("epoch: ", i, " mean error: ", AvgAbsCol(e))
 				}
+				var alphagrad = mat.NewDense(D, 1, nil)
 				alphagrad.Mul(XBatch.T(), e)
+
+				var l2Term = mat.NewDense(D, 1, nil)
+				l2Term.Scale(r.l2, r.w)
+				alphagrad.Add(alphagrad, l2Term)
+
 				alphagrad.Scale(2.*r.alpha/float64(r.batchSize), alphagrad)
 				r.w.Sub(r.w, alphagrad)
 			}
@@ -149,16 +157,18 @@ func (r *LinearRegressor) Score(X [][]float64, y []float64) float64 {
 type LinearClassifier struct {
 	w         *mat.Dense
 	alpha     float64
+	l2        float64
 	batchSize int
 	epochs    int
 	loss      Loss
 	verbose   bool
 }
 
-func NewLinearClassifier(alpha float64, batchSize, epochs int, loss Loss, verbose bool) LinearClassifier {
+func NewLinearClassifier(alpha, l2 float64, batchSize, epochs int, loss Loss, verbose bool) LinearClassifier {
 	return LinearClassifier{
 		nil,
 		alpha,
+		l2,
 		batchSize,
 		epochs,
 		loss,
@@ -202,6 +212,8 @@ func (r *LinearClassifier) Fit(X [][]float64, y []float64) {
 				p.Mul(XBatch, r.w)
 				check.MulElem(p, yBatch)
 
+				alphagrad.Scale(2.*r.l2, r.w)
+
 				for row := 0; row < r.batchSize; row++ {
 					if check.At(row, 0) < 1. {
 						// grad L = sum{i} -y_i * x_i
@@ -210,7 +222,7 @@ func (r *LinearClassifier) Fit(X [][]float64, y []float64) {
 					}
 				}
 				alphagrad.Scale(r.alpha/float64(r.batchSize), alphagrad)
-				r.w.Add(r.w, alphagrad)
+				r.w.Sub(r.w, alphagrad)
 			}
 
 		}

@@ -65,7 +65,7 @@ func main() {
 	XTrain, yTrain := separateColumn(train, len(train[0])-1)
 	XTest, yTest := separateColumn(test, len(train[0])-1)
 
-	LR := ml.NewLinearRegressor(0.0000001, 100, 300, "MSE", true)
+	LR := ml.NewLinearRegressor(0.0000001, 0, 100, 300, "MSE", true)
 	LR.Fit(XTrain, yTrain)
 	fmt.Println(LR.Score(XTest, yTest))
 
